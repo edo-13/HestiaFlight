@@ -11,9 +11,11 @@ HestiaFlight runs **10M+ environment steps/second** on a single GPU, enabling ra
 ## **!!Open Alpha!!** — This is an early release from a small team at [Hestia]([hestiatech.squarespace.com](https://hestiatech.squarespace.com/)) working on multiple projects in parallel. Expect rough edges, missing docs, and breaking changes. We're sharing it early because it's already useful, but it's not polished. Feedback and contributions welcome!
 
 ---
-## Demo
+## Demo GIF
 
 ![training](https://github.com/user-attachments/assets/f071d53c-0e4f-4251-abb8-fc3054d49301)
+
+- This demo was realized with the render + train code that can be found in the repo
 
 ## Features
 
