@@ -8,7 +8,7 @@ HestiaFlight runs **10M+ environment steps/second** on a single GPU, enabling ra
 ![PyTorch 2.0+](https://img.shields.io/badge/pytorch-2.0+-red.svg)
 ![License](https://img.shields.io/badge/license-Hestia%20License-green.svg)
 
-## **!!Open Alpha!!** — This is an early release from a small team at [Hestia](hestiatech.squarespace.com) working on multiple projects in parallel. Expect rough edges, missing docs, and breaking changes. We're sharing it early because it's already useful, but it's not polished. Feedback and contributions welcome!
+## **!!Open Alpha!!** — This is an early release from a small team at [Hestia]([hestiatech.squarespace.com](https://hestiatech.squarespace.com/)) working on multiple projects in parallel. Expect rough edges, missing docs, and breaking changes. We're sharing it early because it's already useful, but it's not polished. Feedback and contributions welcome!
 
 ---
 
