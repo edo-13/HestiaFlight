@@ -172,7 +172,7 @@ ADR automatically expands and contracts randomization ranges based on policy per
 ```bibtex
 @software{hestiaflight2025,
   title = {HestiaFlight: GPU-Vectorized Quadrotor Simulation},
-  author = {Eoardo @ Hestia Technologies},
+  author = {Edoardo @ Hestia Technologies},
   year = {2025},
   url = {https://github.com/hestia-ai/hestiaflight}
 }
