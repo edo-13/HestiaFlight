@@ -47,7 +47,7 @@ HestiaFlight runs **10M+ environment steps/second** on a single GPU, enabling ra
 ## Installation
 
 ```bash
-git clone https://github.com/hestia-ai/hestiaflight.git
+git clone https://github.com/edo-13/HestiaFlight.git
 cd hestiaflight
 pip install -r requirements.txt
 ```
