@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# PyTorch
+*.pt
+*.pth
+*.onnx
+*.zip
+
+# Training outputs
+checkpoints*/
+logs*/
+training_outputs*/
+wandb/
+runs/
+
+# Recordings
+*.gif
+*.mp4
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+venv/
+.venv/
