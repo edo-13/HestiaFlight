@@ -13,13 +13,14 @@ HestiaFlight runs **10M+ environment steps/second** on a single GPU, enabling ra
 ---
 ## Demo GIF
 
-![training](https://github.com/user-attachments/assets/f071d53c-0e4f-4251-abb8-fc3054d49301)
+![eval_recording](https://github.com/user-attachments/assets/04784520-a3e5-42c9-b679-0439667a5b13)
 
-- This demo was realized with the render + train code that can be found in the repo
+- This GIF was realized with the provided physiscs engine, Env, ADR.
 
 ## Features
 
 - **Fully Vectorized**: All physics, rewards, and observations computed on GPU tensors
+
 - **Second-Order Motor Dynamics**: Realistic ESC + rotor inertia modeling
 
 - **Automatic Domain Randomization (ADR)**: Boundary regression for sim-to-real transfer
