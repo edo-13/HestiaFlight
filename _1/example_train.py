@@ -45,9 +45,19 @@ class SB3Wrapper(SB3VecEnv):
 
     def step_wait(self):
         obs, rews, terms, truncs, infos = self.env.step(self.actions)
-        # SB3 expects 'dones' (bool array)
         dones = (terms | truncs).cpu().numpy()
-        return obs.cpu().numpy(), rews.cpu().numpy(), dones, infos
+    
+        if isinstance(infos, dict):
+            cpu_infos = {k: v.cpu().numpy() if torch.is_tensor(v) else v
+                         for k, v in infos.items()}
+            info_list = [{k: v[i] for k, v in cpu_infos.items()}
+                         for i in range(self.num_envs)]
+        elif isinstance(infos, (list, tuple)):
+            info_list = infos
+        else:
+            info_list = [{} for _ in range(self.num_envs)]
+    
+        return obs.cpu().numpy(), rews.cpu().numpy(), dones, info_list
 
     def close(self):
         """Clean up resources."""
