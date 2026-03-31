@@ -35,7 +35,7 @@ Subject to the terms of this License, Hestia Technologies grants You a non-exclu
 You may use HestiaFlight freely under all terms of Section 2.
 
 #### 3.2 At or Above $1,000,000 USD Annual Gross Revenue
-You must obtain a commercial license from Hestia Technologies. Contact: licensing@hestia.ai
+You must obtain a commercial license from Hestia Technologies. Contact us through our website, or at edoardo@hestiatech.net
 
 #### 3.3 Revenue Calculation
 - Revenue is calculated on a trailing twelve-month basis

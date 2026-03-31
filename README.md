@@ -8,14 +8,21 @@ HestiaFlight runs **10M+ environment steps/second** on a single GPU, enabling ra
 ![PyTorch 2.0+](https://img.shields.io/badge/pytorch-2.0+-red.svg)
 ![License](https://img.shields.io/badge/license-Hestia%20License-green.svg)
 
-## **!!Open Alpha!!** — This is an early release from a small team at [Hestia](hestiatech.squarespace.com) working on multiple projects in parallel. Expect rough edges, missing docs, and breaking changes. We're sharing it early because it's already useful, but it's not polished. Feedback and contributions welcome!
+## **!!Open Alpha!!** — This is an early release from a small team at [Hestia]([hestiatech.squarespace.com](https://hestiatech.squarespace.com/)) working on multiple projects in parallel. Expect rough edges, missing docs, and breaking changes. We're sharing it early because it's already useful, but it's not polished. Feedback and contributions welcome!
 
 ---
+## Demo GIF
+
+![eval_recording](https://github.com/user-attachments/assets/04784520-a3e5-42c9-b679-0439667a5b13)
+
+- This GIF was realized with the provided physiscs engine, Env, ADR.
 
 ## Features
 
 - **Fully Vectorized**: All physics, rewards, and observations computed on GPU tensors
+
 - **Second-Order Motor Dynamics**: Realistic ESC + rotor inertia modeling
+
 - **Automatic Domain Randomization (ADR)**: Boundary regression for sim-to-real transfer
 - **Stable-Baselines3 Integration**: Drop-in SB3 wrapper included
 - **Configurable Rewards**: Dataclass-based reward shaping
@@ -47,7 +54,7 @@ HestiaFlight runs **10M+ environment steps/second** on a single GPU, enabling ra
 ## Installation
 
 ```bash
-git clone https://github.com/hestia-ai/hestiaflight.git
+git clone https://github.com/edo-13/HestiaFlight.git
 cd hestiaflight
 pip install -r requirements.txt
 ```
@@ -172,7 +179,7 @@ ADR automatically expands and contracts randomization ranges based on policy per
 ```bibtex
 @software{hestiaflight2025,
   title = {HestiaFlight: GPU-Vectorized Quadrotor Simulation},
-  author = {Eoardo @ Hestia Technologies},
+  author = {Edoardo @ Hestia Technologies},
   year = {2025},
   url = {https://github.com/hestia-ai/hestiaflight}
 }
