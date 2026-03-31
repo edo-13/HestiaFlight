@@ -37,3 +37,7 @@ Thumbs.db
 .env
 venv/
 .venv/
+
+vec_train_2.py
+trajectories*.py
+vision_agent.py
