@@ -3,7 +3,7 @@ import torch
 from typing import Tuple, List, Dict, Optional
 from dataclasses import dataclass, field
 
-from phy_2 import BatchedPhysicsEnv, quaternion_to_rotation_matrix
+from phy_2 import BatchedPhysicsEnv, quaternion_to_rotation_matrix, quaternion_multiply
 from config import TrainingConfig, RewardConfig, SpawnConfig
 
 
@@ -169,9 +169,7 @@ class VecEnv:
         self.prev_action = torch.zeros((num_envs, 4), device=self.device)
         self.prev_vel = torch.zeros((num_envs, 3), device=self.device)
 
-        # ----------------------------------------------------------------
-        # Stage assignment — GPU integer tensor, no Python list
-        # ----------------------------------------------------------------
+        # Stage assignment, GPU-resident
         unique_stages, self.stage_ids = self._assign_stages_gpu(
             stage_names, num_envs
         )
@@ -199,9 +197,7 @@ class VecEnv:
 
         self.reset_all()
 
-    # ----------------------------------------------------------------
-    # Stage helpers (GPU-resident)
-    # ----------------------------------------------------------------
+    # Stage helpers, GPU-resident
 
     @staticmethod
     def _assign_stages_gpu(
@@ -241,9 +237,7 @@ class VecEnv:
         all_ids = torch.arange(self.num_envs, device=self.device)
         self._reset_envs(all_ids)
 
-    # ----------------------------------------------------------------
-    # Reset — fully GPU, no .tolist() / .item()
-    # ----------------------------------------------------------------
+    # Reset, GPU-resident
 
     def _reset_envs(self, env_ids: torch.Tensor) -> None:
         """Reset specified environments (GPU-only path)."""
@@ -372,9 +366,7 @@ class VecEnv:
             self.quat[env_ids], dim=1, keepdim=True
         )
 
-    # ----------------------------------------------------------------
     # Step
-    # ----------------------------------------------------------------
 
     def step(
         self, actions: torch.Tensor
@@ -427,9 +419,7 @@ class VecEnv:
 
         return self._get_obs(), rewards, terminated, truncated, info
 
-    # ----------------------------------------------------------------
-    # Target update
-    # ----------------------------------------------------------------
+    # Target updates, GPU-resident
 
     def _update_targets(
         self,
@@ -463,9 +453,7 @@ class VecEnv:
 
         return target_pos, target_vel, wp_bonus
 
-    # ----------------------------------------------------------------
-    # Rewards
-    # ----------------------------------------------------------------
+    # Reward computation
 
     def _compute_rewards(
         self,
@@ -531,9 +519,8 @@ class VecEnv:
             + proximity_reward
         )
 
-        # Normalise magnitude so PPO value targets stay in a reasonable range.
-        # Success bonus is added by the caller (step()) after this division,
-        # matching the behaviour of the reference reward computation.
+        # Scaling magnitude so PPO value targets stay in a reasonable range.
+        # Success bonus is added by the caller (step()) after this division.
         rewards = rewards / cfg.reward_divisor
 
         return rewards, dist_target
@@ -573,9 +560,7 @@ class VecEnv:
 
         return cfg.camera_alignment_scale * alignment * proximity_factor
 
-    # ----------------------------------------------------------------
     # Termination
-    # ----------------------------------------------------------------
 
     def _check_termination(
         self, dist_target: torch.Tensor
@@ -604,9 +589,7 @@ class VecEnv:
 
         return terminated, truncated, success
 
-    # ----------------------------------------------------------------
-    # Done handling — fully tensorized, no Python loop
-    # ----------------------------------------------------------------
+    # Tensorized Done handling
 
     def _handle_dones_tensorized(
         self,
@@ -656,43 +639,62 @@ class VecEnv:
 
         return info
 
-    # ----------------------------------------------------------------
     # Observations
-    # ----------------------------------------------------------------
 
     def _get_obs(self) -> torch.Tensor:
         batch_indices = torch.arange(self.num_envs, device=self.device)
 
+        # Sensor noise, applied only to observations, not to internal physics
+        noisy_pos = self.pos + torch.randn_like(self.pos) * self.physics.pos_noise_std.unsqueeze(-1)
+        noisy_vel = self.vel + torch.randn_like(self.vel) * self.physics.vel_noise_std.unsqueeze(-1)
+        noisy_omega = self.omega + torch.randn_like(self.omega) * self.physics.gyro_noise_std.unsqueeze(-1)
+        noisy_accel = self.physics.last_accel + torch.randn_like(self.physics.last_accel) * self.physics.accel_noise_std.unsqueeze(-1)
+
+        # Attitude noise: small rotation perturbation to quaternion
+        att_std = self.physics.att_noise_std
+        has_att_noise = att_std.sum() > 0
+        if has_att_noise:
+            noise_axis = torch.randn((self.num_envs, 3), device=self.device)
+            noise_axis = noise_axis / (torch.norm(noise_axis, dim=1, keepdim=True) + 1e-8)
+            noise_angle = torch.randn(self.num_envs, device=self.device) * att_std
+            half = noise_angle / 2.0
+            noise_quat = torch.stack([
+                torch.cos(half),
+                torch.sin(half) * noise_axis[:, 0],
+                torch.sin(half) * noise_axis[:, 1],
+                torch.sin(half) * noise_axis[:, 2],
+            ], dim=1)
+            noisy_quat = quaternion_multiply(self.quat, noise_quat)
+        else:
+            noisy_quat = self.quat
+
+        # Build obs
         if self.config.use_waypoint_mode:
             current_wp = self.env_waypoints[
                 batch_indices, self.current_waypoint_idx
             ]
-
             next_wp_idx = torch.minimum(
                 self.current_waypoint_idx + 1, self.env_path_len - 1
             )
             next_wp = self.env_waypoints[batch_indices, next_wp_idx]
-
             curvature = self._compute_path_curvature(current_wp, next_wp_idx)
             target_vel = torch.zeros_like(self.pos)
         else:
             current_wp = self.env_traj_pos[batch_indices, self.target_idx]
             next_wp = current_wp
             target_vel = self.env_traj_vel[batch_indices, self.target_idx]
-            curvature = torch.zeros(
-                self.num_envs, 1, device=self.device
-            )
+            curvature = torch.zeros(self.num_envs, 1, device=self.device)
 
-        R = quaternion_to_rotation_matrix(self.quat)
+        R = quaternion_to_rotation_matrix(noisy_quat)
         R_T = R.transpose(1, 2)
 
-        rel_pos_world = current_wp - self.pos
-        rel_vel_world = target_vel - self.vel
+        rel_pos_world = current_wp - noisy_pos
+        rel_vel_world = target_vel - noisy_vel
 
         rel_pos_body = torch.bmm(R_T, rel_pos_world.unsqueeze(-1)).squeeze(-1)
         rel_vel_body = torch.bmm(R_T, rel_vel_world.unsqueeze(-1)).squeeze(-1)
 
-        next_wp_world = next_wp - self.pos
+        next_wp_world = next_wp - noisy_pos
         next_wp_body = torch.bmm(R_T, next_wp_world.unsqueeze(-1)).squeeze(-1)
 
         gravity_world = torch.tensor(
@@ -708,16 +710,16 @@ class VecEnv:
 
         return torch.cat(
             [
-                self.pos,
-                self.vel,
-                gravity_body,
-                self.omega,
-                self.physics.last_accel,
-                rel_pos_body,
-                rel_vel_body,
-                distance,
-                closure_rate,
-                next_wp_body,
+                noisy_pos,
+                noisy_vel,
+                gravity_body,       # affected via noisy_quat
+                noisy_omega,
+                noisy_accel,
+                rel_pos_body,       # affected via noisy_pos + noisy_quat
+                rel_vel_body,       # affected via noisy_vel + noisy_quat
+                distance,           # affected via noisy_pos
+                closure_rate,       # affected via noisy_pos + noisy_vel
+                next_wp_body,       # affected via noisy_pos + noisy_quat
                 curvature,
             ],
             dim=1,
@@ -751,9 +753,7 @@ class VecEnv:
 
         return curvature.unsqueeze(-1)
 
-    # ----------------------------------------------------------------
     # Privileged states
-    # ----------------------------------------------------------------
 
     def get_privileged_states(self) -> torch.Tensor:
         batch_indices = torch.arange(self.num_envs, device=self.device)
@@ -822,9 +822,7 @@ class VecEnv:
             dim=1,
         )
 
-    # ----------------------------------------------------------------
     # Utilities
-    # ----------------------------------------------------------------
 
     def set_tolerance(self, tol: float) -> None:
         self.tolerance = tol
@@ -848,9 +846,7 @@ class VecEnv:
         self._epoch_wp_reached_sum.zero_()
         self._epoch_wp_reached_count.zero_()
 
-    # ----------------------------------------------------------------
-    # Backward-compatibility shims
-    # ----------------------------------------------------------------
+    # Legacy calls for backward compatibility
 
     @property
     def epoch_successes(self) -> int:

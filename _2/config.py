@@ -4,6 +4,43 @@ import torch
 import numpy as np
 from typing import List, Dict, Tuple, Any
 
+# Physics constants and domain randoimzation parameters
+
+@dataclass
+class PhysicsConstants:
+    mass: float = 1.5
+    arm_length: float = 0.25
+    thrust_to_weight: float = 2.5
+    ixx: float = 0.0347563
+    iyy: float = 0.0458929
+    izz: float = 0.0977
+    gravity: float = 9.81
+
+    drag_xy: float = 0.04
+    drag_z: float = 0.02
+
+    kp_roll: float = 5.0
+    kp_pitch: float = 5.0
+    kp_yaw: float = 5.0
+    max_body_rate: float = 5.0
+    damping: float = 0.1
+
+    yaw_torque_coef: float = 0.01
+
+    motor_tau: float = 0.015
+    motor_zeta: float = 0.85
+
+    @property
+    def motor_omega_n(self) -> float:
+        return 2.0 / self.motor_tau
+
+    rotor_radius: float = 0.065
+    ground_effect_ceiling: float = 0.5
+
+    integrator_euler: int = 0
+    integrator_semi_implicit: int = 1
+    integrator_rk4: int = 2
+
 @dataclass
 class DomainRandomizationConfig:
     enabled: bool = True
@@ -34,13 +71,27 @@ class DomainRandomizationConfig:
     air_density_range: Tuple[float, float] = (0.85, 1.25)
     air_density_nominal: float = 1.0
 
-    randomize_sensor_noise: bool = False
+    randomize_sensor_noise: bool = False          # master switch
+
+    randomize_position_noise: bool = True         # cascading sub-toggle
     position_noise_range: Tuple[float, float] = (0.0, 0.5)
-    position_noise_nominal: float = 0.0
+    position_noise_nominal: float = 0.001         # near-zero for now
+
+    randomize_velocity_noise: bool = True
     velocity_noise_range: Tuple[float, float] = (0.0, 0.3)
-    velocity_noise_nominal: float = 0.0
+    velocity_noise_nominal: float = 0.001
+
+    randomize_attitude_noise: bool = True
     attitude_noise_range: Tuple[float, float] = (0.0, 0.05)
     attitude_noise_nominal: float = 0.0
+
+    randomize_gyro_noise: bool = True
+    gyro_noise_range: Tuple[float, float] = (0.0, 0.3)
+    gyro_noise_nominal: float = 0.0
+
+    randomize_accel_noise: bool = True
+    accel_noise_range: Tuple[float, float] = (0.0, 0.5)
+    accel_noise_nominal: float = 0.0
 
     randomize_control_delay: bool = True
     control_delay_range: Tuple[float, float] = (0.0, 0.05)
@@ -49,6 +100,9 @@ class DomainRandomizationConfig:
     randomize_interval: bool = True
     time_interval_range: Tuple[float, float] = (0.005, 0.05)
     time_interval_nominal: float = 0.01
+
+
+# Training configuration
     
 
 @dataclass
@@ -135,37 +189,37 @@ class RewardConfig:
         - proximity_reward_scale: Dense proximity reward (0 = disabled, avoids
           reward hacking when not hovering).
     """
-    # --- shaping ---
+    # shaping
     shaping_scale: float = 2.0              # was 1.0; *2.0 weight absorbed here
 
-    # --- waypoint / success bonuses ---
+    # waypoint and success rewards
     waypoint_reached_bonus: float = 70.0
     success_bonus: float = 10.0             # added post-division in step()
 
-    # --- per-step time cost ---
+    # per-step penalties, positive values wit minus sign applied internally
     step_penalty: float = 0.15              # was 0.03; larger value speeds up policy
 
-    # --- kinetic efficiency (new) ---
+    # kinetic efficiency
     efficiency_bonus_scale: float = 0.1    # progress_rate * sqrt(speed)
     ke_reward_scale: float = 0.02          # unconditional sqrt(speed) bonus
 
-    # --- smoothness penalties ---
+    # action smoothness, anti-jerk
     action_smoothness_scale: float = 0.1
     angular_velocity_scale: float = 0.0    # disabled by default to match new reward
 
-    # --- reward normalization ---
+    # reward scaling
     reward_divisor: float = 3.0            # total step reward divided by this
 
-    # --- camera alignment (yaw toward target) ---
+    # camera alignment, yaw toward target
     camera_alignment_scale: float = 0.0
     camera_alignment_proximity_min: float = 0.3
     camera_alignment_proximity_range: float = 30.0
 
-    # --- proximity (dense, off by default) ---
+    # proximity
     proximity_reward_scale: float = 0.0
     proximity_falloff: float = 10.0
 
-    # --- termination conditions ---
+    # termination conditions
     success_steps_in_tolerance: int = 1    # waypoint mode
     success_steps_in_tolerance_traj: int = 64  # trajectory mode
 

@@ -1,45 +1,35 @@
 import torch
 from typing import Dict, Optional, Tuple, Final, NamedTuple
 
-# ============================================================================
-# Constants (Python-level defaults — NOT referenced inside @jit.script)
-# ============================================================================
+from config import PhysicsConstants
 
-DEFAULT_MASS: Final[float] = 1.5
-DEFAULT_ARM_LENGTH: Final[float] = 0.25
-DEFAULT_THRUST_TO_WEIGHT: Final[float] = 2.5
-DEFAULT_IXX: Final[float] = 0.0347563
-DEFAULT_IYY: Final[float] = 0.0458929
-DEFAULT_IZZ: Final[float] = 0.0977
-DEFAULT_GRAVITY: Final[float] = 9.81
+# Constants for JIT
 
-DEFAULT_DRAG_XY: Final[float] = 0.04
-DEFAULT_DRAG_Z: Final[float] = 0.02
+_C = PhysicsConstants()
 
-KP_ROLL: Final[float] = 5.0
-KP_PITCH: Final[float] = 5.0
-KP_YAW: Final[float] = 5.0
-
-MAX_BODY_RATE: Final[float] = 5.0
-DAMPING_COEF: Final[float] = 0.1
-
-DEFAULT_YAW_TORQUE_COEF: Final[float] = 0.01
-
-DEFAULT_MOTOR_TAU: Final[float] = 0.015
-DEFAULT_MOTOR_OMEGA_N: Final[float] = 2.0 / DEFAULT_MOTOR_TAU
-DEFAULT_MOTOR_ZETA: Final[float] = 0.85
-
-DEFAULT_ROTOR_RADIUS: Final[float] = 0.065
-GROUND_EFFECT_CEILING: Final[float] = 0.5
-
-INTEGRATOR_EULER: Final[int] = 0
-INTEGRATOR_SEMI_IMPLICIT: Final[int] = 1
-INTEGRATOR_RK4: Final[int] = 2
-
-
-# ============================================================================
-# TorchScript-compatible constants bundle
-# ============================================================================
+DEFAULT_MASS = _C.mass
+DEFAULT_ARM_LENGTH = _C.arm_length
+DEFAULT_THRUST_TO_WEIGHT = _C.thrust_to_weight
+DEFAULT_IXX = _C.ixx
+DEFAULT_IYY = _C.iyy
+DEFAULT_IZZ = _C.izz
+DEFAULT_GRAVITY = _C.gravity
+DEFAULT_DRAG_XY = _C.drag_xy
+DEFAULT_DRAG_Z = _C.drag_z
+KP_ROLL = _C.kp_roll
+KP_PITCH = _C.kp_pitch
+KP_YAW = _C.kp_yaw
+MAX_BODY_RATE = _C.max_body_rate
+DAMPING_COEF = _C.damping
+DEFAULT_YAW_TORQUE_COEF = _C.yaw_torque_coef
+DEFAULT_MOTOR_TAU = _C.motor_tau
+DEFAULT_MOTOR_OMEGA_N = _C.motor_omega_n
+DEFAULT_MOTOR_ZETA = _C.motor_zeta
+DEFAULT_ROTOR_RADIUS = _C.rotor_radius
+GROUND_EFFECT_CEILING = _C.ground_effect_ceiling
+INTEGRATOR_EULER = _C.integrator_euler
+INTEGRATOR_SEMI_IMPLICIT = _C.integrator_semi_implicit
+INTEGRATOR_RK4 = _C.integrator_rk4
 
 class QuadConst(NamedTuple):
     """All physical constants needed inside @torch.jit.script functions."""
@@ -57,9 +47,7 @@ class QuadConst(NamedTuple):
 QUAD_CONST = QuadConst()
 
 
-# ============================================================================
 # Quaternion operations
-# ============================================================================
 
 @torch.jit.script
 def quaternion_multiply(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
@@ -134,10 +122,7 @@ def integrate_quaternion_exp(
     delta_q = torch.cat([cos_half, sinc_half * omega], dim=-1)
     return quaternion_multiply(q, delta_q)
 
-
-# ============================================================================
 # Motor dynamics
-# ============================================================================
 
 @torch.jit.script
 def _motor_accel(
@@ -219,9 +204,8 @@ def step_motor_rk4(
     return _clamp_motor(new_act, new_vel)
 
 
-# ============================================================================
-# Force / torque computation
-# ============================================================================
+# Force and torque computation
+
 
 @torch.jit.script
 def compute_wrench(
@@ -250,7 +234,7 @@ def compute_wrench(
     device = pos.device
     dtype = pos.dtype
 
-    # --- Thrust ---
+    # Thrust
     thrust_cmd = (action[:, 0] + 1.0) * 0.5
     body_rate_cmd = action[:, 1:].clamp(-1, 1)
 
@@ -270,11 +254,11 @@ def compute_wrench(
     thrust_body[:, 2] = thrust_mag
     thrust_world = quaternion_rotate_vector(quat, thrust_body)
 
-    # --- Gravity ---
+    # Gravity
     gravity_force = torch.zeros(batch_size, 3, device=device, dtype=dtype)
     gravity_force[:, 2] = -mass * gravity
 
-    # --- Per-axis body-frame drag ---
+    # Per axis drag
     vel_body = quaternion_rotate_vector_inverse(quat, vel)
     drag_body = torch.zeros_like(vel_body)
     cd_xy = drag_coef_xy.view(-1, 1)
@@ -284,7 +268,7 @@ def compute_wrench(
     drag_body[:, 2] = -cd_z.squeeze(1) * vel_body[:, 2] * vel_body[:, 2].abs()
     drag_world = quaternion_rotate_vector(quat, drag_body)
 
-    # --- Wind ---
+    # Wind
     wind_force = torch.zeros_like(vel)
     if wind_velocity is not None:
         relative_vel = wind_velocity - vel
@@ -297,7 +281,7 @@ def compute_wrench(
 
     force_world = thrust_world + gravity_force + drag_world + wind_force
 
-    # --- Torques (body frame) ---
+    # body frame torques
     desired_omega = body_rate_cmd * C.max_body_rate
     omega_error = desired_omega - omega
 
@@ -322,9 +306,8 @@ def compute_wrench(
     return force_world, torque_body
 
 
-# ============================================================================
-# Angular acceleration
-# ============================================================================
+# Angular acceleration from torque
+
 
 @torch.jit.script
 def angular_accel_from_torque(
@@ -340,9 +323,8 @@ def angular_accel_from_torque(
     ], dim=-1)
 
 
-# ============================================================================
 # Integrators
-# ============================================================================
+
 
 @torch.jit.script
 def _step_euler(
@@ -527,9 +509,8 @@ def _step_rk4(
     return new_pos, new_vel, new_quat, new_omega, lin_accel
 
 
-# ============================================================================
 # QuadrotorDynamics
-# ============================================================================
+
 
 class QuadrotorDynamics:
     """
@@ -589,9 +570,7 @@ class QuadrotorDynamics:
         }
 
 
-# ============================================================================
-# BatchedPhysicsEnv
-# ============================================================================
+# Batched Physics
 
 class BatchedPhysicsEnv:
     """
@@ -656,6 +635,12 @@ class BatchedPhysicsEnv:
         self.air_density = torch.ones(num_envs, device=self.device)
         self.gravity = torch.full((num_envs,), DEFAULT_GRAVITY, device=self.device)
 
+        self.pos_noise_std = torch.zeros(num_envs, device=self.device)
+        self.vel_noise_std = torch.zeros(num_envs, device=self.device)
+        self.att_noise_std = torch.zeros(num_envs, device=self.device)
+        self.gyro_noise_std = torch.zeros(num_envs, device=self.device)
+        self.accel_noise_std = torch.zeros(num_envs, device=self.device)
+
         # Delay buffer
         self.delay_buffer = torch.zeros(
             (max_delay_steps, num_envs, 4), device=self.device
@@ -671,18 +656,14 @@ class BatchedPhysicsEnv:
         # Preallocated
         self._wind_buffer = torch.zeros((num_envs, 3), device=self.device)
 
-    # ----------------------------------------------------------------
-    # Legacy compat
-    # ----------------------------------------------------------------
+    # Legacy accessors
 
     @property
     def drag_coef(self) -> torch.Tensor:
         """Legacy accessor: returns lateral drag for backward compat."""
         return self.drag_coef_xy
 
-    # ----------------------------------------------------------------
-    # Reset / randomization
-    # ----------------------------------------------------------------
+    # Reser and randomization
 
     def reset(self, env_ids: torch.Tensor) -> None:
         if len(env_ids) == 0:
@@ -691,6 +672,11 @@ class BatchedPhysicsEnv:
         self.last_accel[env_ids] = 0
         self.motor_state[env_ids] = 0
         self.motor_velocity[env_ids] = 0
+        self.pos_noise_std[env_ids] = 0.0
+        self.vel_noise_std[env_ids] = 0.0
+        self.att_noise_std[env_ids] = 0.0
+        self.gyro_noise_std[env_ids] = 0.0
+        self.accel_noise_std[env_ids] = 0.0
 
     def apply_randomization(
         self,
@@ -714,6 +700,11 @@ class BatchedPhysicsEnv:
             self.motor_tau[env_ids] = DEFAULT_MOTOR_TAU
             self.motor_omega_n[env_ids] = DEFAULT_MOTOR_OMEGA_N
             self.motor_zeta[env_ids] = DEFAULT_MOTOR_ZETA
+            self.pos_noise_std[env_ids] = 0.0
+            self.vel_noise_std[env_ids] = 0.0
+            self.att_noise_std[env_ids] = 0.0
+            self.gyro_noise_std[env_ids] = 0.0
+            self.accel_noise_std[env_ids] = 0.0
             return
 
         p = params["physics"]
@@ -756,12 +747,17 @@ class BatchedPhysicsEnv:
             delay_steps, 0, self.max_delay_steps - 1
         )
 
+        s = params["sensors"]
+        self.pos_noise_std[env_ids] = s["position_noise_std"]
+        self.vel_noise_std[env_ids] = s["velocity_noise_std"]
+        self.att_noise_std[env_ids] = s["attitude_noise_std"]
+        self.gyro_noise_std[env_ids] = s["gyro_noise_std"]
+        self.accel_noise_std[env_ids] = s["accel_noise_std"]
+
     # Alias
     apply_randomization_batch = apply_randomization
 
-    # ----------------------------------------------------------------
     # Step
-    # ----------------------------------------------------------------
 
     def step(
         self,
@@ -770,14 +766,14 @@ class BatchedPhysicsEnv:
     ) -> Dict[str, torch.Tensor]:
         """Step all environments forward (with substeps)."""
 
-        # --- Delay pipeline ---
+        # Delay pipeline
         self.delay_buffer[self.buffer_idx] = action
         read_indices = (self.buffer_idx - self.current_delays) % self.max_delay_steps
         env_indices = torch.arange(self.num_envs, device=self.device)
         delayed_action = self.delay_buffer[read_indices, env_indices]
         self.buffer_idx = (self.buffer_idx + 1) % self.max_delay_steps
 
-        # --- Substep loop ---
+        # Substep loop
         sub_dt = self.dt / self.substeps
         cur = state
 
@@ -825,11 +821,10 @@ class BatchedPhysicsEnv:
             )
 
         self.last_accel = cur["acceleration"]
+
         return cur
 
-    # ----------------------------------------------------------------
     # Accessors
-    # ----------------------------------------------------------------
 
     def get_motor_state(self) -> torch.Tensor:
         return self.motor_state.clone()

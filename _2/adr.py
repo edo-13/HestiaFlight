@@ -145,14 +145,31 @@ class AutomaticDomainRandomization:
                 config.air_density_range[0], config.air_density_range[1]
             )
         if config.randomize_sensor_noise:
-            self.parameters['position_noise_std'] = ADRParameter(
-                'position_noise_std', config.position_noise_nominal,
-                config.position_noise_range[0], config.position_noise_range[1]
-            )
-            self.parameters['velocity_noise_std'] = ADRParameter(
-                'velocity_noise_std', config.velocity_noise_nominal,
-                config.velocity_noise_range[0], config.velocity_noise_range[1]
-            )
+            if config.randomize_position_noise:
+                self.parameters['position_noise_std'] = ADRParameter(
+                    'position_noise_std', config.position_noise_nominal,
+                    config.position_noise_range[0], config.position_noise_range[1]
+                )
+            if config.randomize_velocity_noise:
+                self.parameters['velocity_noise_std'] = ADRParameter(
+                    'velocity_noise_std', config.velocity_noise_nominal,
+                    config.velocity_noise_range[0], config.velocity_noise_range[1]
+                )
+            if config.randomize_attitude_noise:
+                self.parameters['attitude_noise_std'] = ADRParameter(
+                    'attitude_noise_std', config.attitude_noise_nominal,
+                    config.attitude_noise_range[0], config.attitude_noise_range[1]
+                )
+            if config.randomize_gyro_noise:
+                self.parameters['gyro_noise_std'] = ADRParameter(
+                    'gyro_noise_std', config.gyro_noise_nominal,
+                    config.gyro_noise_range[0], config.gyro_noise_range[1]
+                )
+            if config.randomize_accel_noise:
+                self.parameters['accel_noise_std'] = ADRParameter(
+                    'accel_noise_std', config.accel_noise_nominal,
+                    config.accel_noise_range[0], config.accel_noise_range[1]
+                )
 
         if config.randomize_interval:
             self.parameters['dt'] = ADRParameter(
@@ -198,7 +215,9 @@ class AutomaticDomainRandomization:
         sensors = {
             'position_noise_std': sample_param('position_noise_std', 0.0),
             'velocity_noise_std': sample_param('velocity_noise_std', 0.0),
-            'attitude_noise_std': 0.0,
+            'attitude_noise_std': sample_param('attitude_noise_std', 0.0),
+            'gyro_noise_std': sample_param('gyro_noise_std', 0.0),
+            'accel_noise_std': sample_param('accel_noise_std', 0.0),
             'control_delay': 0.0,
         }
 
@@ -305,6 +324,9 @@ class AutomaticDomainRandomization:
         air_density_vals = batch_sample('air_density_ratio', 1.0)
         pos_noise_vals = batch_sample('position_noise_std', 0.0)
         vel_noise_vals = batch_sample('velocity_noise_std', 0.0)
+        att_noise_vals = batch_sample('attitude_noise_std', 0.0)
+        gyro_noise_vals = batch_sample('gyro_noise_std', 0.0)
+        accel_noise_vals = batch_sample('accel_noise_std', 0.0)
 
         time_vals = batch_sample('dt', 0.01)
 
@@ -331,7 +353,10 @@ class AutomaticDomainRandomization:
                 ('air_density_ratio', air_density_vals),
                 ('position_noise_std', pos_noise_vals),
                 ('velocity_noise_std', vel_noise_vals),
-                ('dt', time_vals)
+                ('dt', time_vals),
+                ('attitude_noise_std', att_noise_vals),
+                ('gyro_noise_std', gyro_noise_vals),
+                ('accel_noise_std', accel_noise_vals),
             ]:
                 if param_name in self.parameters:
                     self._env_samples[env_id][param_name] = values[i]
@@ -352,6 +377,9 @@ class AutomaticDomainRandomization:
             'sensors': {
                 'position_noise_std': torch.tensor(pos_noise_vals, dtype=torch.float32, device=device),
                 'velocity_noise_std': torch.tensor(vel_noise_vals, dtype=torch.float32, device=device),
+                'attitude_noise_std': torch.tensor(att_noise_vals, dtype=torch.float32, device=device),
+                'gyro_noise_std': torch.tensor(gyro_noise_vals, dtype=torch.float32, device=device),
+                'accel_noise_std': torch.tensor(accel_noise_vals, dtype=torch.float32, device=device),
                 'control_delay': torch.zeros(n, dtype=torch.float32, device=device),
             },
             'time': {
