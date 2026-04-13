@@ -280,14 +280,20 @@ class AutomaticDomainRandomization:
             pickle.dump(state, f)
     
     def load(self, path):
-         #halving ADR ranges when loading to allow gentler fine-tuning
+        
         with open(path, 'rb') as f:
             state = pickle.load(f)
         for name, data in state.items():
             if name in self.parameters:
-                self.parameters[name].current_min = data['current_min'] / 2.0 if self.halve else data['current_min'] #halving ADR ranges when loading to allow gentler fine-tuning
-                self.parameters[name].current_max = data['current_max'] / 2.0 if self.halve else data['current_max']
-                self.parameters[name].history = deque(data['history'], maxlen=200)
+                param = self.parameters[name]
+                loaded_min = data['current_min'] / 2.0 if self.halve else data['current_min']
+                loaded_max = data['current_max'] / 2.0 if self.halve else data['current_max']
+
+                # Clamp to config bounds if config range is tighter
+                param.current_min = max(loaded_min, param.min_bound)
+                param.current_max = min(loaded_max, param.max_bound)
+
+                param.history = deque(data['history'], maxlen=200)
 
     def randomize_batch(self, env_ids: torch.Tensor, device: torch.device) -> Dict[str, Any]:
         """
