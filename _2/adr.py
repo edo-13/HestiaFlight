@@ -69,23 +69,23 @@ class ADRParameter:
         
         updates = {'updated': False, 'min_action': None, 'max_action': None}
         
-        if score_min > self.threshold_expand and self.current_min > self.min_bound:
+        if score_min > self.threshold_expand and self.current_min >= self.min_bound:
             delta = total_range * self.expand_rate
             self.current_min = max(self.min_bound, self.current_min - delta)
             updates['min_action'] = 'expand'
             updates['updated'] = True
-        elif score_min < self.threshold_contract and self.current_min < self.nominal:
+        elif score_min < self.threshold_contract and self.current_min <= self.nominal:
             delta = total_range * self.contract_rate
             self.current_min = min(self.nominal, self.current_min + delta)
             updates['min_action'] = 'contract'
             updates['updated'] = True
         
-        if score_max > self.threshold_expand and self.current_max < self.max_bound:
+        if score_max > self.threshold_expand and self.current_max <= self.max_bound:
             delta = total_range * self.expand_rate
             self.current_max = min(self.max_bound, self.current_max + delta)
             updates['max_action'] = 'expand'
             updates['updated'] = True
-        elif score_max < self.threshold_contract and self.current_max > self.nominal:
+        elif score_max < self.threshold_contract and self.current_max >= self.nominal:
             delta = total_range * self.contract_rate
             self.current_max = max(self.nominal, self.current_max - delta)
             updates['max_action'] = 'contract'
